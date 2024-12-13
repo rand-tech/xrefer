@@ -1,0 +1,11 @@
+flare_capa
+networkx
+Requests
+tabulate
+asciinet
+bs4
+langchain
+langchain_google_genai
+langchain_openai
+tenacity
+python-statemachine
