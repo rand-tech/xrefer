@@ -47,7 +47,7 @@ Run analysis either from the default entry point (`Edit -> XRefer -> Run Analysi
 - **External Data & Exclusions:**  
 XRefer can ingest external data sources, including API trace files from dynamic analysis sandboxes VMRay and Cape. It can also ingest capa analysis outputs, and user-defined indirect xrefs for enhanced path resolution. These inputs help enrich the analysis with additional context. Manage default paths for these resources from the configuration dialog and fine-tune their usage by enabling or disabling exclusions, as well as adding or removing exclusion entries to focus on the most relevant artifacts.
 
-For more in-depth instructions and usage scenarios, please refer to the [Usage Documentation](docs/Usage.md).
+For more in-depth instructions and usage scenarios, please refer to the [Usage Documentation](docs/usage.md).
 
 ![x](/images/navigation.gif)
 
