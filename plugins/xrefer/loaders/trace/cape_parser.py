@@ -197,7 +197,7 @@ class CapeTraceParser(BaseTraceParser):
             trace_base = self._get_image_base(debug_log)
             if trace_base is None:
                 try:
-                    base_str = process_data.get('environ', {}).get('MainExeBase', '')
+                    base_str =  process_data.get('environ', {}).get('DllBase', '') or process_data.get('environ', {}).get('MainExeBase', '')
                     trace_base = int(base_str, 16)
                 except Exception as err:
                     log("Could not determine trace image base: {err}")
