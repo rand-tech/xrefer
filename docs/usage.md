@@ -134,3 +134,6 @@ As described in the [blog post](https://cloud.google.com/blog/topics/threat-inte
 
 #### Return to Base (home) view
 Pressing `ENTER` will always skip all navigation history (unlike `ESC`) and jump back to the `base` view.
+
+#### Expand/Collapse all Table items
+While in `base` view, pressing `E` will toggle between expanding and collapsing all items under the current table (based on where the cursor currently is)
