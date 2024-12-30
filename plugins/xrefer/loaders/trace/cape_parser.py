@@ -61,24 +61,44 @@ class CapeTraceParser(BaseTraceParser):
         except Exception:
             return False
             
-    def _get_image_base(self, debug_log: List[str]) -> Optional[int]:
+    def _get_image_base(self, debug_log: str, process_data: dict) -> Optional[int]:
         """
-        Extract base address from debug log.
+        Extract base address from debug log or process environment.
         
-        Searches debug log for PeParser instantiation message containing
-        base address.
+        Attempts to parse a line like:
+            "DumpProcess: Instantiating PeParser with address: 0x1234abcd"
+        from the debug log. If that fails, falls back to checking
+        the 'DllBase' or 'MainExeBase' fields in process_data['environ'].
         
         Args:
-            debug_log (List[str]): List of debug log lines
-            
+            debug_log (str): A string containing debug log output from the trace file.
+            process_data (dict): Process-related dictionary from the Cape sandbox trace,
+                                which may contain environment details.
+
         Returns:
-            Optional[int]: Base address if found, None otherwise
+            Optional[int]: The base address if found, or None otherwise.
         """
         pattern = r"DumpProcess: Instantiating PeParser with address: (0x[0-9a-fA-F]+)"
+
+        # 1. Attempt to find the base address in debug_log lines
         if "DumpProcess: Instantiating PeParser with address:" in debug_log:
             match = re.search(pattern, debug_log)
             if match:
-                return int(match.group(1), 16)
+                try:
+                    return int(match.group(1), 16)
+                except ValueError:
+                    pass  # If malformed, fall through to environment fallback
+
+        # 2. Fallback to environment-based fields: DllBase or MainExeBase
+        env_data = process_data.get('environ', {})
+        base_str = env_data.get('DllBase', '') or env_data.get('MainExeBase', '')
+        if base_str:
+            try:
+                return int(base_str, 16)
+            except ValueError:
+                pass
+
+        # 3. If all attempts fail, return None
         return None
 
     def _format_arg_value(self, arg: Dict[str, Any]) -> str:
@@ -192,16 +212,12 @@ class CapeTraceParser(BaseTraceParser):
                 log("Trace file SHA256 does not match IDB")
                 return {}
             
-            # Get image base and verify
+            # Attempt to determine the trace base address
             debug_log = data.get('debug', {}).get('log', '')
-            trace_base = self._get_image_base(debug_log)
+            trace_base = self._get_image_base(debug_log, process_data)
             if trace_base is None:
-                try:
-                    base_str =  process_data.get('environ', {}).get('DllBase', '') or process_data.get('environ', {}).get('MainExeBase', '')
-                    trace_base = int(base_str, 16)
-                except Exception as err:
-                    log("Could not determine trace image base: {err}")
-                    return {}
+                log("Could not determine trace image base.")
+                return {}
             
             # Process API calls
             api_calls = process_data.get('calls', [])
