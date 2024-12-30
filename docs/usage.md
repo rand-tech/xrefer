@@ -16,7 +16,7 @@ When the LLM lookups are enabled, for convenient browsing XRefer also categorize
 
 ## Basic Navigation
 
-Once the analysis finishes you will jump to the analyzed entry point of the sample and will be greeted by the `base` view. This is the context aware view that updates based on the current function being viewed in disassembly and/or pseudocode views.
+Once the analysis finishes you will jump to the analyzed entry point of the sample and will be greeted by the `base` view. This is the context aware view that updates based on the current function being viewed in disassembly and/or pseudocode views. The XRefer side pane with this and/or cluster views is meant to remain open while browsing the binary code. The side pane can be expanded/collapsed using the arrow indicator on the right border of the pane.
 
 ![base_view 1.png](../images/base_view_1.png)
 
