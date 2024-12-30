@@ -121,6 +121,7 @@ class XReferView(idaapi.simplecustviewer_t):
         self.in_graph_view = False
         self._is_collapsed = False 
         self._from_double_click = False
+        self._explicit_cluster_click = False
 
         if self.xrefer_obj.lang:
             self.create()
@@ -547,42 +548,45 @@ class XReferView(idaapi.simplecustviewer_t):
             return False
         
         # Handle cluster navigation
-        if self.state_machine.current_state in (self.state_machine.cluster_graphs, 
-                                                self.state_machine.pinned_cluster_graphs,
-                                                self.state_machine.clusters,
-                                                self.state_machine.base):
+        if self.state_machine.current_state in (
+            self.state_machine.cluster_graphs,
+            self.state_machine.pinned_cluster_graphs,
+            self.state_machine.clusters,
+            self.state_machine.base
+        ):
             cluster_manager = self.state_machine.cluster_manager
 
+            # If in cluster graph states, store current position before switching
             if self.state_machine.current_state not in (self.state_machine.base, self.state_machine.clusters):
-                # Store current position before any navigation
                 lineno, x, y = self.GetPos()
-                
                 if current := cluster_manager.get_current_cluster():
-                    # Don't navigate if clicking current cluster
+                    # Save cursor for the old cluster
                     cluster_id = parse_cluster_id(word)
                     if cluster_id is not None and cluster_id == current.cluster_id:
+                        # Clicking on the same cluster ID
                         return True
-                        
                     cluster_manager.store_cursor_pos(current.cluster_id, (lineno, x, y))
                 else:
                     cluster_manager.store_relationship_pos((lineno, x, y))
-            else:
-                current = None
 
-
-            # Check for cluster ID clicks
+            # Check if user clicked on a cluster ID
             cluster_id = parse_cluster_id(word)
             if cluster_id is not None:
+                # Mark that the user explicitly clicked a cluster ID
+                self._explicit_cluster_click = True
+
                 cluster = self.xrefer_obj.find_cluster_by_id(cluster_id)
                 if cluster:
-                    # Get current cluster as parent
-                    if not current:
-                        parent_id = None
+                    # Prepare to navigate to that cluster
+                    if current := cluster_manager.get_current_cluster():
+                        parent_id = current.cluster_id
                     else:
-                        parent_id = current.cluster_id if current else None
+                        parent_id = None
                     cluster_manager.push_cluster(cluster_id, parent_id)
+
+                    # Switch state to cluster graphs if needed
                     self.state_machine.start_cluster_graphs()
-                    self.update(True)
+                    self.update(True)  # Force refresh
                     self.Jump(0, 0)
                     return True
 
@@ -2575,70 +2579,92 @@ class XReferView(idaapi.simplecustviewer_t):
         self.AddLine('')
     
     def draw_individual_cluster_graph(self, cluster_id: int) -> None:
-        """Draw cluster graph with navigation."""
+        """
+        Render and display the internal graph for a given cluster, including its subclusters and node connections.
+
+        This method:
+        • Locates and validates the specified cluster by its unique ID.
+        • Recursively gathers all nodes belonging to the cluster (including subclusters and cluster references).
+        • If cluster sync is enabled, it checks whether the currently active function in disassembly/pseudocode
+            view belongs to this cluster—or if it qualifies as an 'intermediate' node. If neither condition is met,
+            and the user did not explicitly select this cluster, a "FUNCTION NOT FOUND" message is shown.
+        • Otherwise, it proceeds to:
+            - Print cluster headers/metadata (e.g., labels and descriptions).
+            - Print cross-reference information related to the cluster's root node.
+            - Generate and display an ASCII-graph (or other textual representation) of the cluster's
+                nodes, edges, and subclusters, optionally highlighting the active function if applicable.
+        • Handles additional logic to gracefully skip the "not found" message when the user explicitly navigates
+            to this cluster (e.g., by clicking a cluster ID in the cluster graph interface).
+
+        Args:
+            cluster_id (int): The unique integer identifier of the cluster to be displayed.
+        
+        Returns:
+            None. The cluster information is rendered and printed directly into the plugin's custom viewer.
+        """
         try:
-            # Find cluster and get its state
             cluster = self.xrefer_obj.find_cluster_by_id(cluster_id)
             if not cluster:
                 self.AddLine(f'{self.INDENT}ERROR: Could not find cluster {cluster_id}')
                 return
-                
-            # Get current view state
+
             current = self.state_machine.cluster_manager.get_current_cluster()
             if not current:
                 return
-                
-            # Get cluster data
+
             cluster_data = find_cluster_analysis(self.xrefer_obj.cluster_analysis, cluster_id)
-            
-            # Recursive function to gather all nodes from a given cluster hierarchy
-            def gather_all_cluster_nodes(c, nodes_set):
-                nodes_set.update(c.nodes)
-                nodes_set.add(c.root_node)
-                nodes_set.update(c.cluster_refs.keys())
+
+            # Gather all nodes (including subclusters)
+            def gather_all_cluster_nodes(c, node_set):
+                node_set.update(c.nodes)
+                node_set.add(c.root_node)
+                node_set.update(c.cluster_refs.keys())
                 for sc in c.subclusters:
-                    gather_all_cluster_nodes(sc, nodes_set)
-            
-            # Gather nodes from the current cluster (and its subclusters)
+                    gather_all_cluster_nodes(sc, node_set)
+
             all_nodes = set()
             gather_all_cluster_nodes(cluster, all_nodes)
 
-            # Also gather a global set of all nodes from all top-level clusters
-            # to handle cases where func_ea belongs to a different cluster hierarchy
+            # Also gather global nodes from all top-level clusters
             global_all_nodes = set()
             for top_c in self.xrefer_obj.clusters:
                 gather_all_cluster_nodes(top_c, global_all_nodes)
-            
-            # If sync is enabled, check for intermediate node case
+
+            # If cluster sync is on, see if current func belongs here
             if self.state_machine.cluster_sync_enabled and self.func_ea:
                 if self.func_ea not in all_nodes:
-                    # If not in current cluster's nodes directly, check if in global nodes
-                    # If in global_all_nodes, it means it's a known cluster node elsewhere
-                    # and we should NOT consider it intermediate.
                     if self.func_ea not in global_all_nodes:
+                        # Possibly an intermediate function
                         containing_paths = self._get_intermediate_paths_containing_function(self.func_ea)
                         if containing_paths:
-                            # Use specialized intermediate view
+                            # Show specialized intermediate function graph
                             self.draw_intermediate_function_graph(self.func_ea)
                             return
-            
-            # If not intermediate node or sync is disabled or func found globally
-            # as a cluster node, continue with normal visualization
-            func_in_cluster = self.func_ea in all_nodes if self.func_ea else False
 
-            if self.state_machine.cluster_sync_enabled:
-                if func_in_cluster:
-                    self._print_cluster_header(cluster, cluster_data)
-                    self.print_cluster_xrefs(cluster, self.INDENT)
-                    self._draw_cluster_nodes(cluster, self.func_ea)
-                else:
-                    self.AddLine('')
-                    self.AddLine(f'{self.INDENT}FUNCTION NOT FOUND IN ANY DISCOVERED CLUSTERS OR INTERMEDIATE NODES')
+                    # If we reach here, the function is not recognized in the new cluster
+                    # Decide if we skip or show "FUNCTION NOT FOUND"
 
-            else:
-                self._print_cluster_header(cluster, cluster_data)
-                self.print_cluster_xrefs(cluster, self.INDENT)
-                self._draw_cluster_nodes(cluster, self.func_ea if func_in_cluster else None)
+                    if self._explicit_cluster_click:
+                        # We specifically clicked on this cluster's ID, so we skip "not found"
+                        # and proceed to show the cluster. Then reset the flag for next time.
+                        self._explicit_cluster_click = False
+                    else:
+                        # We are just browsing around with cluster sync on
+                        self.AddLine('')
+                        self.AddLine(f'{self.INDENT}FUNCTION NOT FOUND IN ANY DISCOVERED CLUSTERS OR INTERMEDIATE NODES')
+                        return
+
+            # If we get here, either the function is recognized or user explicitly clicked.
+            # Proceed to show the cluster as normal.
+
+            # 1) Print the cluster's header
+            self._print_cluster_header(cluster, cluster_data)
+
+            # 2) Print cross-references to cluster root
+            self.print_cluster_xrefs(cluster, self.INDENT)
+
+            # 3) Draw cluster's internal graph and subclusters
+            self._draw_cluster_nodes(cluster, self.func_ea)
 
         except Exception as e:
             log(f"Error drawing cluster graph: {str(e)}")
@@ -3003,7 +3029,8 @@ class XReferView(idaapi.simplecustviewer_t):
             if self.func_ea:
                 prev_func = ida_funcs.get_func(self.func_ea)
                 if current_func is not None and prev_func is not None and current_func == prev_func:
-                    return
+                    if not self.peek_flag:
+                        return
 
             
             # Handle cluster sync if enabled
@@ -4103,6 +4130,9 @@ class XReferView(idaapi.simplecustviewer_t):
         """
         _, xpos, _ = self.GetPos(True)
         line = self.GetCurrentLine(True)
+
+        if not line:
+            return None
 
         # Handle SCOLOR_IMPNAME case
         line = line.replace('\x01\x22', '').replace('\x02\x22', '')
