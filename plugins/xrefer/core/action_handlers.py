@@ -323,7 +323,7 @@ class AboutDialogHandler(idaapi.action_handler_t):
         layout.addWidget(title_label)
         
         # Add version
-        version_label = QtWidgets.QLabel("Version 1.0.1")
+        version_label = QtWidgets.QLabel("Version 1.0.2")
         version_font = version_label.font()
         version_font.setPointSize(9)
         version_label.setFont(version_font)
