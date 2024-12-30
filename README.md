@@ -9,8 +9,6 @@ XRefer is a Python-based plugin for the [IDA Pro disassembler](https://hex-rays.
 
 More can be read about XRefer in the accompanying [blog post](https://cloud.google.com/blog/topics/threat-intelligence/xrefer-gemini-assisted-binary-navigator).
 
-**License:** XRefer is released under the Apache License 2.0. See [LICENSE](LICENSE) for details.
-
 ## Installation
 
 1. **Clone the Repository:**
@@ -30,9 +28,10 @@ From the main directory of the cloned repository:
   ```
   pip install -r requirements.txt
   ```
-   
 
 Note: The `asciinet` dependency requires Java to be installed. OpenJDK or any JRE should work. Ensure `java` is accessible on your system's PATH.
+
+**License:** XRefer is released under the Apache License 2.0. See [LICENSE](LICENSE) for details.
 
 ## Usage
 
