@@ -1093,7 +1093,9 @@ class MissingFilesDialog(QDialog):
         # Truncate directory path
         while metrics.horizontalAdvance(dir_name) > available_width and len(dir_name) > 3:
             parts = dir_name.split(os.sep)
-            if len(parts) > 3:
+            if len(parts) <= 2:
+                break
+            elif len(parts) > 3:
                 parts = parts[:2] + ["..."] + parts[-1:]
             else:
                 parts = ["..."] + parts[-1:]
