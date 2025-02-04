@@ -814,7 +814,8 @@ class XRefer:
         modified = False
 
         for index, (_, path_group) in enumerate(self.paths[self.current_analysis_ep].items()):
-            log(f'Propagating xref nodes :: [pass {iter}] :: [{index}/{total}]')
+            if index % 10 == 0:
+                log(f'Propagating xref nodes :: [pass {iter}] :: [{index}/{total}]')
             for path in path_group:
                 child_func_ea = None
 
