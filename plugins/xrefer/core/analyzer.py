@@ -2663,7 +2663,6 @@ class XRefer:
                 refs = xref_cache[target]
 
             if refs:
-                current_path = path_buffer.pop(0)
                 for ref in refs:
                     if ref in current_path:
                         continue
@@ -2673,11 +2672,11 @@ class XRefer:
                     else:
                         path_buffer.append(current_path + [ref])
 
-            elif initial not in path_buffer[0]:
-                path_buffer.pop(0)
+            elif len(current_path) > 0 and initial not in current_path:
+                continue
 
-            elif initial in path_buffer[0]:
-                all_paths = self.insert_path(all_paths, path_buffer.pop(0)[::-1])
+            elif len(current_path) > 0 and initial in current_path:
+                all_paths = self.insert_path(all_paths, current_path[::-1])
 
         return all_paths
 
